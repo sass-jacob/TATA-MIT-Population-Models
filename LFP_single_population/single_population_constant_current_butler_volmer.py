@@ -2,7 +2,7 @@ import pybamm
 import numpy as np
 import matplotlib.pyplot as plt
 
-model = pybamm.BaseModel(name="FokkerPlanck_ConstantCurrent")
+model = pybamm.BaseModel(name="SinglePopulation_ConstantCurrent")
 
 # filling fraction coordinate 'c' from 0 to 1
 c = pybamm.SpatialVariable("c", domain="filling_fraction_space", coord_sys="cartesian")
