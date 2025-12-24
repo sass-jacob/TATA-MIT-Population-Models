@@ -27,27 +27,38 @@ D = pybamm.Parameter("Fluctuations Strength")
 alpha = 0.5
 # the nominal cell capacity
 Q_nom = pybamm.Parameter("Nominal cell capacity [A.h]")
+# numerical viscosity for advection term
+nu = pybamm.Parameter("Numerical Viscosity")
+
 
 # --- INPUTS ---
 # the applied current
 I_app = pybamm.InputParameter("Current function [A]")
 
+
 # --- EQUATIONS ---
+
 # regular solution chemical potential function (nondimensional)
 mu_particle = pybamm.log(c / (1 - c)) + Omega * (1 - 2 * c)
 # delta_mu is the overpotential driving force for (de)intercalation reactions (nondimensional)
 delta_mu = V_cell / thermal_voltage - phi_ref / thermal_voltage - mu_particle
 # the exchange current density (nondimensional)
-R0 = k0 * (1 - c) * c
+R0 = k0 * pybamm.sqrt((1 - c) * c)
 # the butler volmer driving term (nondimensional)
 g_driving = pybamm.exp(alpha * delta_mu) - pybamm.exp(-(1 - alpha) * delta_mu)
 # total reaction current density (nondimensional)
 R = R0 * g_driving
 
+# correction term for advection
+eps = 1e-10
+R_abs = pybamm.sqrt(R**2 + eps)
+# effective diffusion
+D_eff = D + nu * R_abs
+
 # for the fokker planck equation, the flux is defined by the sum of diffusive and advective terms (nondimensional)
-diffusive_flux = -D * pybamm.grad(f)
+diffusive_flux = -D_eff * pybamm.grad(f)
 # reactions drive the concentration changes within particles (nondimensional)
-advective_flux = f * R
+advective_flux = R * f
 total_flux = advective_flux + diffusive_flux
 
 # conservation law
@@ -92,6 +103,8 @@ model.events = [
 # --- INPUT PARAMETERS ---
 constant_current_value = 0.23   # input current in Amperes
 start_SOC = 0.05                # initial SOC of the population
+n_points = 200
+dc = 1.0 / n_points
 
 # --- PARAMETER VALUES ---
 params = pybamm.ParameterValues({
@@ -102,13 +115,14 @@ params = pybamm.ParameterValues({
     "Fluctuations Strength": 2e-4,
     "Initial Average Fraction": start_SOC,
     "Reference Potential [V]": 3.422,
-    "Current function [A]": constant_current_value
+    "Current function [A]": constant_current_value,
+    "Numerical Viscosity": dc,
 })
 
 # --- DISCRETIZATION ---
 model_proc = params.process_model(model, inplace=False)
 submesh_types = {"filling_fraction_space": pybamm.Uniform1DSubMesh}
-var_pts = {c: 200} # 200 grid points
+var_pts = {c: n_points} # 200 grid points
 mesh = pybamm.Mesh(geometry, submesh_types, var_pts)
 spatial_methods = {"filling_fraction_space": pybamm.FiniteVolume()}
 disc = pybamm.Discretisation(mesh, spatial_methods)
@@ -117,8 +131,7 @@ disc.process_model(model_proc)
 t_eval = np.linspace(0, 9.4, 1000)
 
 # --- SOLVE ---
-solver = pybamm.CasadiSolver(
-    mode="safe",
+solver = pybamm.IDAKLUSolver(
     atol=1e-6,
     rtol=1e-6
 )
