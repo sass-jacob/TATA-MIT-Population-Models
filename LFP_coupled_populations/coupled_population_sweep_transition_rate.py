@@ -210,7 +210,7 @@ if __name__ == "__main__":
         fontsize=14
     )
     plt.tight_layout()
-    plt.savefig("transition_rate_sweep_grid.png", dpi=150, bbox_inches='tight')
+    # plt.savefig("transition_rate_sweep_grid.png", dpi=150, bbox_inches='tight')
     plt.show()
 
     plt.figure(figsize=(10, 6))
@@ -230,7 +230,5 @@ if __name__ == "__main__":
     plt.legend(loc='best', fontsize=8, ncol=2)
     plt.grid(True, alpha=0.3)
     plt.tight_layout()
-    plt.savefig("transition_rate_sweep_overlay.png", dpi=150, bbox_inches='tight')
+    # plt.savefig("transition_rate_sweep_overlay.png", dpi=150, bbox_inches='tight')
     plt.show()
-
-    print("\nPlots saved: transition_rate_sweep_grid.png, transition_rate_sweep_overlay.png")

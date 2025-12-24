@@ -277,9 +277,6 @@ plt.tight_layout()
 
 plt.show()
 
-# we see here that the voltage is somewhat nonsensical because the effects of the onset
-# of phase separation lead to a jump in chemical potential from the regular solution chemical potential to that of the
-# phase separated particles. we will introduce a new population of particles that is the "phase separated" population
-# instead of using just a single population of particles that follow the regular solution chemical potential we define the
-# phase separated population chemical potential to have constant mu_ref_phase_separated since phase separation is a constant
-# potential process.
+# by varying the transition rate, I suspect that we can get a better match of the simulated
+# voltage profile to what is expected for a cell. this motivates the parameter sweep for the
+# transition rate parameters
