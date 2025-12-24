@@ -83,15 +83,15 @@ c_avg = pybamm.Integral(f * c, c)  # average filling fraction in the population
 # set conservative limits based on domain boundaries (c ∈ [1e-4, 1-1e-4])
 # stop when within safe margins of the boundaries to maintain numerical stability
 model.events = [
-    pybamm.Event("Maximum stoichiometry", 0.98 - c_avg),  # stop if <c> > 0.98
-    pybamm.Event("Minimum stoichiometry", c_avg - 0.02),  # stop if <c> < 0.02
+    pybamm.Event("Maximum stoichiometry", 0.95 - c_avg),  # stop if <c> > 0.95
+    pybamm.Event("Minimum stoichiometry", c_avg - 0.05),  # stop if <c> < 0.05
     pybamm.Event("Maximum voltage", 4.2 - V_cell),  # stop if V > 4.2V
     pybamm.Event("Minimum voltage", V_cell - 2.5),  # stop if V < 2.5V
 ]
 
 # --- INPUT PARAMETERS ---
 constant_current_value = 0.23   # input current in Amperes
-start_SOC = 0.04                # initial SOC of the population
+start_SOC = 0.05                # initial SOC of the population
 
 # --- PARAMETER VALUES ---
 params = pybamm.ParameterValues({
@@ -114,7 +114,7 @@ spatial_methods = {"filling_fraction_space": pybamm.FiniteVolume()}
 disc = pybamm.Discretisation(mesh, spatial_methods)
 disc.process_model(model_proc)
 
-t_eval = np.linspace(0, 10.5, 1000)
+t_eval = np.linspace(0, 9.4, 1000)
 
 # --- SOLVE ---
 solver = pybamm.CasadiSolver(
@@ -173,8 +173,8 @@ plt.show()
 
 # plot cell voltage vs. average fraction
 plt.figure(figsize=(7, 5))
-mu_res_sol = solution["Cell Voltage [V]"].entries
-plt.plot(c_avg, mu_res_sol, 'k-', linewidth=2)
+V_sol = solution["Cell Voltage [V]"]
+plt.plot(c_avg, V_sol.entries, 'k-', linewidth=2)
 plt.xlabel(r"Average Fraction $\langle c \rangle$")
 plt.ylabel(r"Cell Voltage [V]")
 plt.title("Cell Voltage vs. Filling Fraction")
