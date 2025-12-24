@@ -129,7 +129,7 @@ model.boundary_conditions = {
 }
 
 # initial condition: gaussian centered at start_c
-start_c = pybamm.Parameter("Initial Average Fraction")
+start_c = pybamm.Parameter("Initial Filling Fraction")
 width = 0.01
 f_init = pybamm.exp(-((c - start_c)**2) / (2 * width**2))
 model.initial_conditions = {
@@ -165,7 +165,7 @@ params = pybamm.ParameterValues({
     "Rate Constant": 1.0,
     "Thermal Voltage [V]": 0.025,
     "Fluctuations Strength": 2e-4,
-    "Initial Average Fraction": start_SOC,
+    "Initial Filling Fraction": start_SOC,
     "Reference Potential [V]": 3.422,
     "Phase Separation Potential [V]": 3.422,
     "Current function [A]": constant_current_value,
@@ -215,10 +215,10 @@ f_2_sol = f_2_sol / mass_2[np.newaxis, :]
 # lithiation or delithiation
 if constant_current_value < 0:
     y_data = 1 - c_avg
-    y_label = r"Average Fraction $1 - \langle c \rangle$ (Delithiation)"
+    y_label = r"Filling Fraction $1 - \langle c \rangle$ (Delithiation)"
 else:
     y_data = c_avg
-    y_label = r"Average Fraction $\langle c \rangle$ (Lithiation)"
+    y_label = r"Filling Fraction $\langle c \rangle$ (Lithiation)"
 
 fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 6))
 
@@ -265,11 +265,11 @@ fig.suptitle(
 plt.tight_layout()
 plt.show()
 
-# plot cell voltage vs. average fraction
+# plot cell voltage vs. filling fraction
 plt.figure(figsize=(7, 5))
 V_sol = solution["Cell Voltage [V]"]
 plt.plot(c_avg, V_sol.entries, 'k-', linewidth=2)
-plt.xlabel(r"Average Fraction $\langle c \rangle$")
+plt.xlabel(r"Filling Fraction $\langle c \rangle$")
 plt.ylabel(r"Cell Voltage [V]")
 plt.title("Cell Voltage vs. Filling Fraction")
 plt.grid(True, alpha=0.3)
