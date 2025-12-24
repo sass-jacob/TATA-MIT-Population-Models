@@ -2,59 +2,63 @@ import pybamm
 import numpy as np
 import matplotlib.pyplot as plt
 
-model = pybamm.BaseModel(name="FokkerPlanck_Experiment")
+model = pybamm.BaseModel(name="SinglePopulation")
 
+# --- VARIABLES ---
 # filling fraction coordinate 'c' from 0 to 1
 c = pybamm.SpatialVariable("c", domain="filling_fraction_space", coord_sys="cartesian")
-geometry = {"filling_fraction_space": {c: {"min": pybamm.Scalar(1e-4), "max": pybamm.Scalar(1-1e-4)}}}
-
-# solving for the probability density function f and the reservoir chemical potential mu_res
+geometry = {"filling_fraction_space": {c: {"min": pybamm.Scalar(1e-3), "max": pybamm.Scalar(1-1e-3)}}}
 # f is the fraction of active material particles that have filling fraction 'c'
 f = pybamm.Variable("Probability Distribution", domain="filling_fraction_space")
-# mu_res is the chemical potential of the reservoir, which is related to the voltage of the cell
-mu_res = pybamm.Variable("Reservoir Chemical Potential")
+# V_cell is the voltage of the cell
+V_cell = pybamm.Variable("Cell Voltage [V]")
 
+# --- PARAMETERS ---
+thermal_voltage = pybamm.Parameter("Thermal Voltage [V]")
+phi_ref = pybamm.Parameter("Reference Potential [V]")
 # the interaction parameter that drives phase separation.
 # if omega < 2, phase separation does not occur
-Omega = pybamm.Parameter("Interaction Parameter Omega")
-# the applied current density (nondimensional) - now from InputParameter for Experiment compatibility
-I_app = pybamm.InputParameter("Current function [A]")
-# the rate constant for the kinetics
+Omega = pybamm.Parameter("Interaction Parameter")
+# the kinetic rate constant
 k0 = pybamm.Parameter("Rate Constant")
-# parameter that controls the strength of the thermal fluctuations
-D = pybamm.Parameter("Fluctuation Strength D")
+# parameter that controls the strength of fluctuations
+D = pybamm.Parameter("Fluctuations Strength")
 # alpha controls the symmetry between charge and discharge kinetics
-alpha = 0.5 
+alpha = 0.5
+# the nominal cell capacity
+Q_nom = pybamm.Parameter("Nominal cell capacity [A.h]")
 
-# regular solution chemical potential function
+# --- INPUTS ---
+# the applied current
+I_app = pybamm.InputParameter("Current function [A]")
+
+# --- EQUATIONS ---
+# regular solution chemical potential function (nondimensional)
 mu_particle = pybamm.log(c / (1 - c)) + Omega * (1 - 2 * c)
-
-# delta_mu is the overpotential driving force for (de)intercalation reactions
-delta_mu = mu_res - mu_particle
-# the butler volmer exchange current density (simplified formulation for numerical stability)
-R0 = k0 * c * (1 - c)
-# the butler volmer driving term
+# delta_mu is the overpotential driving force for (de)intercalation reactions (nondimensional)
+delta_mu = V_cell / thermal_voltage - phi_ref / thermal_voltage - mu_particle
+# the exchange current density (nondimensional)
+R0 = k0 * (1 - c) * c
+# the butler volmer driving term (nondimensional)
 g_driving = pybamm.exp(alpha * delta_mu) - pybamm.exp(-(1 - alpha) * delta_mu)
-# total reaction current density
+# total reaction current density (nondimensional)
 R = R0 * g_driving
 
-# for the fokker planck equation, the flux is defined by the sum of diffusive and advective terms
-# diffusive flux is related to thermal fluctuations
+# for the fokker planck equation, the flux is defined by the sum of diffusive and advective terms (nondimensional)
 diffusive_flux = -D * pybamm.grad(f)
-# reactions drive the concentration changes within particles
+# reactions drive the concentration changes within particles (nondimensional)
 advective_flux = f * R
 total_flux = advective_flux + diffusive_flux
 
-# conservation Law
-# df/dt = -div(j)
+# conservation law
 model.rhs = {f: -pybamm.div(total_flux)}
 
-# constant current constraint
+# current constraint
 model.algebraic = {
-    mu_res: pybamm.Integral(f * R, c) - I_app
+    V_cell: pybamm.Integral(f * R, c) - I_app / Q_nom
 }
 
-# boundary and initial conditions
+# --- BOUNDARY AND INITIAL CONDITIONS ---
 # zero flux at boundaries (Conservation of Probability)
 model.boundary_conditions = {
     f: {
@@ -69,33 +73,39 @@ width = 0.01
 f_init = pybamm.exp(-((c - start_c)**2) / (2 * width**2))
 model.initial_conditions = {
     f: f_init / (width * np.sqrt(2 * np.pi)), 
-    mu_res: pybamm.Scalar(0)
+    V_cell: pybamm.Scalar(3.422)
 }
 
-# simulation parameters
-current_value = 0.05  # this is the C-rate of the cell
-start_val = 0.04      # what is the initial filling fraction of the population?
-target_val = 0.90     # stop the simulation before approaching c=1 singularity
+# add stopping events to prevent solver divergence near domain boundaries
+# these events stop the simulation when average filling fraction approaches singularities
+c_avg = pybamm.Integral(f * c, c)  # average filling fraction in the population
 
+# set conservative limits based on domain boundaries (c ∈ [1e-4, 1-1e-4])
+# stop when within safe margins of the boundaries to maintain numerical stability
+model.events = [
+    pybamm.Event("Maximum stoichiometry", 0.98 - c_avg),  # stop if <c> > 0.98
+    pybamm.Event("Minimum stoichiometry", c_avg - 0.02),  # stop if <c> < 0.02
+    pybamm.Event("Maximum voltage", 4.2 - V_cell),  # stop if V > 4.2V
+    pybamm.Event("Minimum voltage", V_cell - 2.5),  # stop if V < 2.5V
+]
+
+# --- INPUT PARAMETERS ---
+constant_current_value = 0.23   # input current in Amperes
+start_SOC = 0.04                # initial SOC of the population
+
+# --- PARAMETER VALUES ---
 params = pybamm.ParameterValues({
-    "Interaction Parameter Omega": 4.5,    # omega > 2 for phase separation
+    "Nominal cell capacity [A.h]": 2.3,
+    "Interaction Parameter": 4.5,
     "Rate Constant": 1.0,
-    "Fluctuation Strength D": 2e-4,       # small thermal noise
-    "Initial Average Fraction": start_val,
-    "Current function [A]": current_value  # default value for InputParameter
+    "Thermal Voltage [V]": 0.025,
+    "Fluctuations Strength": 2e-4,
+    "Initial Average Fraction": start_SOC,
+    "Reference Potential [V]": 3.422,
+    "Current function [A]": constant_current_value
 })
 
-# calculate simulation time for a single discharge
-total_duration = abs(target_val - start_val) / abs(current_value)
-
-# Define discretization for the custom geometry
-var_pts = {c: 200}  # 200 grid points
-submesh_types = {"filling_fraction_space": pybamm.Uniform1DSubMesh}
-spatial_methods = {"filling_fraction_space": pybamm.FiniteVolume()}
-
-
-
-# Manually process the model and set up discretization
+# --- DISCRETIZATION ---
 model_proc = params.process_model(model, inplace=False)
 submesh_types = {"filling_fraction_space": pybamm.Uniform1DSubMesh}
 var_pts = {c: 200} # 200 grid points
@@ -104,20 +114,18 @@ spatial_methods = {"filling_fraction_space": pybamm.FiniteVolume()}
 disc = pybamm.Discretisation(mesh, spatial_methods)
 disc.process_model(model_proc)
 
-# calculate time points for evaluation
-t_eval = np.linspace(0, total_duration, 400)
+t_eval = np.linspace(0, 10.5, 1000)
 
-# Solve with InputParameter - current is now a runtime input
+# --- SOLVE ---
 solver = pybamm.CasadiSolver(
-    mode="fast", 
-    dt_max=total_duration/100,
+    mode="safe",
     atol=1e-6,
     rtol=1e-6
 )
 solution = solver.solve(
     model_proc, 
-    t_eval, 
-    inputs={"Current function [A]": current_value}
+    t_eval,
+    inputs={"Current function [A]": constant_current_value}
 )
 
 # plotting filling fraction of population versus SOC
@@ -125,22 +133,19 @@ c_vals = mesh["filling_fraction_space"].nodes  # filling fraction c (x-axis)
 f_sol = solution["Probability Distribution"].entries # probability density f (color)
 
 # Compute average filling fraction (analogous to SOC) from the distribution
-# This is computed post-solve for numerical stability
 dx = c_vals[1] - c_vals[0]
 c_avg = np.sum(c_vals[:, np.newaxis] * f_sol, axis=0) * dx
 
-# Normalize the probability distribution
 mass = np.sum(f_sol, axis=0) * dx
 f_sol = f_sol / mass[np.newaxis, :]
 
 # lithiation or delithiation
-if current_value < 0:
+if constant_current_value < 0:
     y_data = 1 - c_avg
     y_label = r"Average Fraction $1 - \langle c \rangle$ (Delithiation)"
 else:
     y_data = c_avg
     y_label = r"Average Fraction $\langle c \rangle$ (Lithiation)"
-
 
 plt.figure(figsize=(7, 6))
 
@@ -160,25 +165,25 @@ plt.xlim(0, 1)
 plt.ylim(0, 1)
 plt.xlabel(r"Local Mole Fraction $c$")
 plt.ylabel(y_label)
-plt.title(fr"Population Dynamics" + f"\nC-rate={current_value}, " + fr"$\Omega={params['Interaction Parameter Omega']}$", pad=20)
+plt.title(fr"Population Dynamics" + f"\nCurrent={constant_current_value}[A], " + fr"$\Omega={params['Interaction Parameter']}$", pad=20)
 plt.colorbar(pcm, label=r"f($c$) Probability Density of Particle Having Fraction $c$")
 
 plt.tight_layout()
 plt.show()
 
-# plot reservoir chemical potential vs. average fraction
+# plot cell voltage vs. average fraction
 plt.figure(figsize=(7, 5))
-mu_res_sol = solution["Reservoir Chemical Potential"].entries
+mu_res_sol = solution["Cell Voltage [V]"].entries
 plt.plot(c_avg, mu_res_sol, 'k-', linewidth=2)
 plt.xlabel(r"Average Fraction $\langle c \rangle$")
-plt.ylabel(r"Reservoir Chemical Potential $\mu_{res}$")
-plt.title("Reservoir Chemical Potential vs. Filling Fraction")
+plt.ylabel(r"Cell Voltage [V]")
+plt.title("Cell Voltage vs. Filling Fraction")
 plt.grid(True, alpha=0.3)
 plt.tight_layout()
 
 plt.show()
 
-# we see here that the reservoir chemical potential (Voltage) is somewhat nonsensical because the effects of the onset
+# we see here that the voltage is somewhat nonsensical because the effects of the onset
 # of phase separation lead to a jump in chemical potential from the regular solution chemical potential to that of the
 # phase separated particles. we will introduce a new population of particles that is the "phase separated" population
 # instead of using just a single population of particles that follow the regular solution chemical potential we define the
