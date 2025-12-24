@@ -37,7 +37,6 @@ I_app = pybamm.InputParameter("Current function [A]")
 
 
 # --- EQUATIONS ---
-
 # regular solution chemical potential function (nondimensional)
 mu_particle = pybamm.log(c / (1 - c)) + Omega * (1 - 2 * c)
 # delta_mu is the overpotential driving force for (de)intercalation reactions (nondimensional)
@@ -54,6 +53,7 @@ eps = 1e-10
 R_abs = pybamm.sqrt(R**2 + eps)
 # effective diffusion
 D_eff = D + nu * R_abs
+# if curious, can look up the Lax-Friedrichs scheme for advection
 
 # for the fokker planck equation, the flux is defined by the sum of diffusive and advective terms (nondimensional)
 diffusive_flux = -D_eff * pybamm.grad(f)
