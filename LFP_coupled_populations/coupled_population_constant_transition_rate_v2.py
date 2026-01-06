@@ -44,11 +44,12 @@ ecd = pybamm.FunctionParameter("Exchange current density", {"c": c})
 # --- EXCHANGE CURRENT DENSITY FUNCTION ---
 # general form of exchange current density
 def exchange_current_density(c):
-    """Exchange current density: sqrt(c * (1-c)) - symmetric Butler-Volmer form."""
+    # ECIT form
     return np.sqrt(c)* (1 - c)
 
 def transition_rate(c):
     return 0.1*(1+np.tanh(50*(c-0.05)))
+    
 # --- INPUTS ---
 # the applied current
 I_app = pybamm.InputParameter("Current function [A]")
